@@ -1,7 +1,6 @@
 from typing import List, Tuple, Dict
 import torch
 from torch import Tensor, nn
-from torchtext.vocab import Vocab
 import tokenizers as tk
 
 from src.utils import pred_token_within_range, subsequent_mask
@@ -21,7 +20,6 @@ VALID_BBOX_TOKEN = [
     "<eos>"
 ] + BBOX_TOKENS  # image size will be addressed after instantiation
 
-
 class Batch:
     """Wrap up a batch of training samples with different training targets.
     The input is not torch tensor
@@ -38,21 +36,19 @@ class Batch:
         self,
         device: torch.device,
         target: str,
-        vocab: Vocab,
         obj: List,
     ) -> None:
         self.device = device
         self.image = obj[0].to(device)
         self.name = obj[1]["filename"]
         self.target = target
-        self.vocab = vocab
         self.image_size = self.image.shape[-1]
 
         if "table" in target:
             raise NotImplementedError
 
         if "html" in target:
-            self.valid_html_token = [vocab.token_to_id(i) for i in VALID_HTML_TOKEN]
+            self.valid_html_token = [i for i in tk.Tokenizer.from_file("html_tokenizer.json")]
             (
                 self.html_src,
                 self.html_tgt,
@@ -61,7 +57,11 @@ class Batch:
             ) = self._prepare_transformer_input(obj[1]["html"])
 
         if "cell" in target:
-            self.invalid_cell_token = [vocab.token_to_id(i) for i in INVALID_CELL_TOKEN]
+            self.invalid_cell_token = [
+                i
+                for i in tk.Tokenizer.from_file("cell_tokenizer.json")
+                if i not in self.valid_html_token
+            ]
             (
                 self.cell_src,
                 self.cell_tgt,
@@ -223,3 +223,4 @@ def turn_off_beit_grad(model: nn.Module):
 def turn_on_beit_grad(model: nn.Module):
     for param in model.parameters():
         param.requires_grad = True
+
